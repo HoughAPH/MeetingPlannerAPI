@@ -83,6 +83,27 @@ public sealed class Meeting : AggregateRoot
         return true;
     }
 
+    /// <summary>
+    /// Records a participant's Accepted or Declined answer, like replying to an Outlook invitation. Returns false if it was
+    /// already their answer (no state change). Never checks the participant's other meetings: overlaps are only a warning.
+    /// </summary>
+    public bool Respond(Guid participantId, ResponseStatus response)
+    {
+        if (IsCancelled)
+            throw new DomainException("meeting.cancelled", "A cancelled meeting cannot be responded to.");
+        if (response is not (ResponseStatus.Accepted or ResponseStatus.Declined))
+            throw new DomainException("participant.response.invalid", "A response must be Accepted or Declined.");
+
+        Participant participant = _participants.Find(p => p.Id == participantId)
+            ?? throw new DomainException("meeting.participant.not_found", "The meeting has no such participant.");
+
+        if (!participant.Respond(response))
+            return false;
+
+        Version++;
+        return true;
+    }
+
     private static (string Title, string Description) ValidateDetails(string? title, string? description)
     {
         title = (title ?? string.Empty).Trim();
@@ -108,7 +129,7 @@ public sealed class Meeting : AggregateRoot
             throw new DomainException("meeting.time.invalid_range", "Meeting end time must be after its start time.");
     }
 
-    // Validates the full list first, then reconciles by email so existing participants keep their Id and IsAttending.
+    // Validates the full list first, then reconciles by email so existing participants keep their Id and Response.
     private void SyncParticipants(IEnumerable<NewParticipant> participants)
     {
         List<Participant> desired = participants.Select(a => Participant.Create(a.Name, a.Email)).ToList();

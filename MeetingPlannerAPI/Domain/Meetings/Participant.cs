@@ -13,7 +13,7 @@ public sealed class Participant : Entity
     [EmailAddress]
     public string Email { get; private set; } = string.Empty;
 
-    public bool IsAttending { get; private set; }
+    public ResponseStatus Response { get; private set; } = ResponseStatus.NoResponse;
 
     private Participant()
     {
@@ -43,12 +43,22 @@ public sealed class Participant : Entity
             Id = Guid.NewGuid(),
             Name = name,
             Email = email.ToLowerInvariant(),
-            IsAttending = false
+            Response = ResponseStatus.NoResponse
         };
     }
 
     /// <summary>Called by <see cref="Meeting"/> with a name already validated by <see cref="Create"/>.</summary>
     internal void Rename(string name) => Name = name;
+
+    /// <summary>Returns false (and changes nothing) if the participant had already given this response.</summary>
+    internal bool Respond(ResponseStatus response)
+    {
+        if (Response == response)
+            return false;
+
+        Response = response;
+        return true;
+    }
 
     // Deliberately simple structural check; full RFC 5322 validation is not worth its complexity here.
     private static bool IsValidEmail(string email) =>

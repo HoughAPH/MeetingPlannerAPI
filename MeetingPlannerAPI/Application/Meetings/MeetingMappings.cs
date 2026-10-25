@@ -12,5 +12,5 @@ internal static class MeetingMappings
         @meeting.EndTimeUtc,
         @meeting.CreatedAtUtc,
         @meeting.Version,
-        @meeting.Participants.Select(a => new ParticipantDto(a.Id, a.Name, a.Email, a.IsAttending)).ToList());
+        @meeting.Participants.Select(a => new ParticipantDto(a.Id, a.Name, a.Email, a.Response)).ToList());
 }

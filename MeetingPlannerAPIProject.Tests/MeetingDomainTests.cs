@@ -24,7 +24,7 @@ public class MeetingDomainTests
 
         Participant participant = Assert.Single(@meeting.Participants);
         Assert.Equal("jane@example.com", participant.Email);
-        Assert.False(participant.IsAttending);
+        Assert.Equal(ResponseStatus.NoResponse, participant.Response);
     }
 
     [Fact]
@@ -141,6 +141,69 @@ public class MeetingDomainTests
         Assert.Equal("Meeting", @meeting.Title);
         Assert.Equal(1, @meeting.Version);
         Assert.Equal("jane@example.com", Assert.Single(@meeting.Participants).Email);
+    }
+
+    [Fact]
+    public void Respond_RecordsAnswer_AndBumpsVersionOnlyWhenItChanges()
+    {
+        Meeting meeting = Meeting.Create("Meeting", null, Start, Start.AddHours(1), [new NewParticipant("Jane", "jane@example.com")]);
+        Participant jane = meeting.Participants.Single();
+
+        Assert.True(meeting.Respond(jane.Id, ResponseStatus.Accepted));
+        Assert.Equal(ResponseStatus.Accepted, jane.Response);
+        Assert.Equal(2, meeting.Version);
+
+        Assert.False(meeting.Respond(jane.Id, ResponseStatus.Accepted));
+        Assert.Equal(2, meeting.Version);
+
+        Assert.True(meeting.Respond(jane.Id, ResponseStatus.Declined));
+        Assert.Equal(ResponseStatus.Declined, jane.Response);
+        Assert.Equal(3, meeting.Version);
+    }
+
+    [Fact]
+    public void Respond_NoResponseValue_Throws()
+    {
+        Meeting meeting = Meeting.Create("Meeting", null, Start, Start.AddHours(1), [new NewParticipant("Jane", "jane@example.com")]);
+
+        DomainException ex = Assert.Throws<DomainException>(() =>
+            meeting.Respond(meeting.Participants.Single().Id, ResponseStatus.NoResponse));
+
+        Assert.Equal("participant.response.invalid", ex.Code);
+        Assert.Equal(1, meeting.Version);
+    }
+
+    [Fact]
+    public void Respond_UnknownParticipant_Throws()
+    {
+        Meeting meeting = Meeting.Create("Meeting", null, Start, Start.AddHours(1), []);
+
+        DomainException ex = Assert.Throws<DomainException>(() => meeting.Respond(Guid.NewGuid(), ResponseStatus.Accepted));
+
+        Assert.Equal("meeting.participant.not_found", ex.Code);
+    }
+
+    [Fact]
+    public void Respond_CancelledMeeting_Throws()
+    {
+        Meeting meeting = Meeting.Create("Meeting", null, Start, Start.AddHours(1), [new NewParticipant("Jane", "jane@example.com")]);
+        meeting.Cancel();
+
+        DomainException ex = Assert.Throws<DomainException>(() =>
+            meeting.Respond(meeting.Participants.Single().Id, ResponseStatus.Accepted));
+
+        Assert.Equal("meeting.cancelled", ex.Code);
+    }
+
+    [Fact]
+    public void Update_KeepsAnExistingParticipantsResponse()
+    {
+        Meeting meeting = Meeting.Create("Meeting", null, Start, Start.AddHours(1), [new NewParticipant("Jane", "jane@example.com")]);
+        meeting.Respond(meeting.Participants.Single().Id, ResponseStatus.Accepted);
+
+        meeting.Update("Renamed", null, Start, Start.AddHours(1), [new NewParticipant("Jane", "JANE@example.com")]);
+
+        Assert.Equal(ResponseStatus.Accepted, meeting.Participants.Single().Response);
     }
 
     [Fact]

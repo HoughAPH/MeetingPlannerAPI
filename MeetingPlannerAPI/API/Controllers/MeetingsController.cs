@@ -4,9 +4,11 @@ using MeetingPlannerAPI.Application.Meetings.CancelMeeting;
 using MeetingPlannerAPI.Application.Meetings.CheckAvailability;
 using MeetingPlannerAPI.Application.Meetings.CreateMeeting;
 using MeetingPlannerAPI.Application.Meetings.GetMeeting;
+using MeetingPlannerAPI.Application.Meetings.RespondToInvitation;
 using MeetingPlannerAPI.Application.Meetings.SearchMeetings;
 using MeetingPlannerAPI.Application.Meetings.UpdateMeeting;
 using MeetingPlannerAPI.Domain.Common;
+using MeetingPlannerAPI.Domain.Meetings;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MeetingPlannerAPI.API.Controllers;
@@ -78,6 +80,37 @@ public sealed class MeetingsController : ControllerBase
 
         Response.Headers.ETag = ETags.Format(updated.Version);
         return Ok(updated.ToResponse(await FindConflictsAsync(updated, availability, cancellationToken)));
+    }
+
+    /// <summary>
+    /// Accepts or declines a meeting invitation for one participant, like replying in Outlook. Accepting a meeting that
+    /// overlaps another one the participant is on still succeeds and reports the clash in <c>availabilityConflicts</c>.
+    /// </summary>
+    [HttpPut("{id:guid}/participants/{participantId:guid}/response")]
+    [ProducesResponseType<MeetingResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MeetingResponse>> Respond(
+        Guid id,
+        Guid participantId,
+        RespondToInvitationRequest request,
+        [FromServices] RespondToInvitationHandler handler,
+        [FromServices] CheckAvailabilityHandler availability,
+        CancellationToken cancellationToken)
+    {
+        MeetingDto? updated = await handler.HandleAsync(
+            new RespondToInvitationCommand(id, participantId, request.Response!.Value), cancellationToken);
+        if (updated is null)
+            return NotFound();
+
+        Response.Headers.ETag = ETags.Format(updated.Version);
+
+        if (request.Response != ResponseStatus.Accepted)
+            return Ok(updated.ToResponse());
+
+        string email = updated.Participants.Single(p => p.Id == participantId).Email;
+        IReadOnlyList<ParticipantConflictDto> conflicts = await FindConflictsAsync(updated, availability, cancellationToken);
+        return Ok(updated.ToResponse([.. conflicts.Where(c => c.Email == email)]));
     }
 
     /// <summary>Cancels a meeting and notifies its participants. Repeating the call for a cancelled meeting is a no-op.</summary>

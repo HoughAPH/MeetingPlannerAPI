@@ -28,7 +28,7 @@ public sealed class MeetingsApiTests : IDisposable
     {
         MeetingResponse created = await CreateAsync("Consultation", Start, Start.AddMinutes(30), "Jane@Example.com");
         Assert.Equal("jane@example.com", Assert.Single(created.Participants).Email);
-        Assert.False(created.Participants[0].IsAttending);
+        Assert.Equal(ResponseStatus.NoResponse, created.Participants[0].Response);
 
         PagedResponse<MeetingResponse> listed = await SearchAsync("");
         Assert.Equal(created.Id, Assert.Single(listed.Items).Id);
@@ -215,6 +215,65 @@ public sealed class MeetingsApiTests : IDisposable
         MeetingResponse updated = (await put.Content.ReadFromJsonAsync<MeetingResponse>())!;
         Assert.Equal(second.Id, Assert.Single(updated.AvailabilityConflicts!).MeetingId);
     }
+
+    [Fact]
+    public async Task Respond_AcceptThenDecline_UpdatesStatusAndETag()
+    {
+        MeetingResponse created = await CreateAsync("Consultation", Start, Start.AddMinutes(30), "jane@example.com");
+        Guid participantId = created.Participants.Single().Id;
+
+        HttpResponseMessage accepted = await RespondAsync(created.Id, participantId, "Accepted");
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        Assert.Equal("\"2\"", accepted.Headers.ETag?.Tag);
+        MeetingResponse body = (await accepted.Content.ReadFromJsonAsync<MeetingResponse>())!;
+        Assert.Equal(ResponseStatus.Accepted, body.Participants.Single().Response);
+
+        HttpResponseMessage declined = await RespondAsync(created.Id, participantId, "Declined");
+        Assert.Equal(ResponseStatus.Declined, (await declined.Content.ReadFromJsonAsync<MeetingResponse>())!.Participants.Single().Response);
+
+        MeetingResponse fetched = (await _client.GetFromJsonAsync<MeetingResponse>($"/api/meetings/{created.Id}"))!;
+        Assert.Equal(ResponseStatus.Declined, fetched.Participants.Single().Response);
+        Assert.Equal(3, fetched.Version);
+    }
+
+    [Fact]
+    public async Task Respond_ReturnsNotFoundForUnknownMeetingOrParticipant_AndBadRequestForBadInput()
+    {
+        MeetingResponse created = await CreateAsync("Consultation", Start, Start.AddMinutes(30), "jane@example.com");
+        Guid participantId = created.Participants.Single().Id;
+
+        Assert.Equal(HttpStatusCode.NotFound, (await RespondAsync(Guid.NewGuid(), participantId, "Accepted")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await RespondAsync(created.Id, Guid.NewGuid(), "Accepted")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await RespondAsync(created.Id, participantId, "NoResponse")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await RespondAsync(created.Id, participantId, "Maybe")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.PutAsJsonAsync(
+            $"/api/meetings/{created.Id}/participants/{participantId}/response", new { })).StatusCode);
+
+        await _client.DeleteAsync($"/api/meetings/{created.Id}");
+        Assert.Equal(HttpStatusCode.BadRequest, (await RespondAsync(created.Id, participantId, "Accepted")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Respond_AcceptingAnOverlappingMeeting_StillSucceeds_ButWarns()
+    {
+        MeetingResponse first = await CreateAsync("first", Start, Start.AddHours(1), "jane@example.com");
+        MeetingResponse second = await CreateAsync("second", Start.AddMinutes(10), Start.AddHours(2), "jane@example.com", "bob@example.com");
+        Guid janeId = second.Participants.Single(p => p.Email == "jane@example.com").Id;
+
+        MeetingResponse accepted = (await (await RespondAsync(second.Id, janeId, "Accepted")).Content.ReadFromJsonAsync<MeetingResponse>())!;
+
+        Assert.Equal(ResponseStatus.Accepted, accepted.Participants.Single(p => p.Id == janeId).Response);
+        AvailabilityConflictResponse conflict = Assert.Single(accepted.AvailabilityConflicts!);
+        Assert.Equal(first.Id, conflict.MeetingId);
+        Assert.Equal("jane@example.com", conflict.Email);
+
+        // Declining never warns.
+        MeetingResponse declined = (await (await RespondAsync(second.Id, janeId, "Declined")).Content.ReadFromJsonAsync<MeetingResponse>())!;
+        Assert.Null(declined.AvailabilityConflicts);
+    }
+
+    private Task<HttpResponseMessage> RespondAsync(Guid meetingId, Guid participantId, string response) =>
+        _client.PutAsJsonAsync($"/api/meetings/{meetingId}/participants/{participantId}/response", new { response });
 
     private async Task<IReadOnlyList<ParticipantAvailabilityResponse>> CheckAvailabilityAsync(
         DateTimeOffset from, DateTimeOffset to, params string[] emails)

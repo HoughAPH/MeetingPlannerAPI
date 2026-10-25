@@ -1,8 +1,9 @@
+using MeetingPlannerAPI.Domain.Meetings;
 using System.Text.Json.Serialization;
 
 namespace MeetingPlannerAPI.API.Contracts;
 
-public sealed record ParticipantResponse(Guid Id, string Name, string Email, bool IsAttending);
+public sealed record ParticipantResponse(Guid Id, string Name, string Email, ResponseStatus Response);
 
 public sealed record MeetingResponse(
     Guid Id,

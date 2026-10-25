@@ -50,6 +50,8 @@ internal sealed class MeetingConfiguration : IEntityTypeConfiguration<Meeting>, 
         builder.Property(a => a.Name).IsRequired().HasMaxLength(MeetingLimits.ParticipantNameMaxLength);
         builder.Property(a => a.Email).IsRequired().HasMaxLength(MeetingLimits.ParticipantEmailMaxLength);
 
+        builder.Property(a => a.Response).HasConversion<string>().HasMaxLength(20);
+
         // Backs the "one participant per email per meeting" invariant at the database level.
         builder.HasIndex("MeetingId", nameof(Participant.Email)).IsUnique();
         // Supports filtering meetings by participant email.

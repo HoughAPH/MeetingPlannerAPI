@@ -2,6 +2,7 @@ using MeetingPlannerAPI.Application.Meetings.CancelMeeting;
 using MeetingPlannerAPI.Application.Meetings.CheckAvailability;
 using MeetingPlannerAPI.Application.Meetings.CreateMeeting;
 using MeetingPlannerAPI.Application.Meetings.GetMeeting;
+using MeetingPlannerAPI.Application.Meetings.RespondToInvitation;
 using MeetingPlannerAPI.Application.Meetings.SearchMeetings;
 using MeetingPlannerAPI.Application.Meetings.UpdateMeeting;
 
@@ -17,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<GetMeetingHandler>();
         services.AddScoped<SearchMeetingsHandler>();
         services.AddScoped<CheckAvailabilityHandler>();
+        services.AddScoped<RespondToInvitationHandler>();
         return services;
     }
 }

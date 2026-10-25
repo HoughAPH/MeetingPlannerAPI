@@ -65,15 +65,17 @@ namespace MeetingPlannerAPI.Infrastructure.Persistence.Migrations
                         .HasMaxLength(254)
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsAttending")
-                        .HasColumnType("INTEGER");
-
                     b.Property<Guid>("MeetingId")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Response")
+                        .IsRequired()
+                        .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

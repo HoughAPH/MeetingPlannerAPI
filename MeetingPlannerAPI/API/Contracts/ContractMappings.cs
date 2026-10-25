@@ -69,7 +69,7 @@ internal static class ContractMappings
         ToUtcOffset(dto.EndTimeUtc),
         ToUtcOffset(dto.CreatedAtUtc),
         dto.Version,
-        dto.Participants.Select(a => new ParticipantResponse(a.Id, a.Name, a.Email, a.IsAttending)).ToList());
+        dto.Participants.Select(a => new ParticipantResponse(a.Id, a.Name, a.Email, a.Response)).ToList());
 
     public static PagedResponse<MeetingResponse> ToResponse(this PagedResult<MeetingDto> page) => new(
         page.Items.Select(ToResponse).ToList(),
