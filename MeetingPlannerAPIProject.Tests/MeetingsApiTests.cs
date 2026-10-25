@@ -272,6 +272,30 @@ public sealed class MeetingsApiTests : IDisposable
         Assert.Null(declined.AvailabilityConflicts);
     }
 
+    [Fact]
+    public async Task Availability_IgnoresMeetingsTheParticipantDeclined()
+    {
+        MeetingResponse declined = await CreateAsync("declined", Start, Start.AddHours(1), "bob@example.com");
+        await RespondAsync(declined.Id, declined.Participants.Single().Id, "Declined");
+
+        Assert.True(Assert.Single(await CheckAvailabilityAsync(Start.AddMinutes(30), Start.AddHours(2), "bob@example.com")).IsAvailable);
+
+        await RespondAsync(declined.Id, declined.Participants.Single().Id, "Accepted");
+
+        Assert.False(Assert.Single(await CheckAvailabilityAsync(Start.AddMinutes(30), Start.AddHours(2), "bob@example.com")).IsAvailable);
+    }
+
+    [Fact]
+    public async Task Search_HugePageNumber_ReturnsAnEmptyPageInsteadOfFailing()
+    {
+        await CreateAsync("only", Start, Start.AddHours(1));
+
+        PagedResponse<MeetingResponse> result = await SearchAsync($"?page={int.MaxValue}&pageSize=100");
+
+        Assert.Empty(result.Items);
+        Assert.Equal(1, result.TotalCount);
+    }
+
     private Task<HttpResponseMessage> RespondAsync(Guid meetingId, Guid participantId, string response) =>
         _client.PutAsJsonAsync($"/api/meetings/{meetingId}/participants/{participantId}/response", new { response });
 

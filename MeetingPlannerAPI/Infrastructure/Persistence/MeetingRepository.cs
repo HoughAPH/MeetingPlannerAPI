@@ -56,7 +56,7 @@ internal sealed class MeetingRepository(AppDbContext db) : IMeetingRepository
             .Include(e => e.Participants)
             .OrderBy(e => e.StartTimeUtc)
             .ThenBy(e => e.Id)
-            .Skip((criteria.Page - 1) * criteria.PageSize)
+            .Skip((int)Math.Min((long)(criteria.Page - 1) * criteria.PageSize, int.MaxValue))
             .Take(criteria.PageSize)
             .ToListAsync(cancellationToken);
 
@@ -70,7 +70,7 @@ internal sealed class MeetingRepository(AppDbContext db) : IMeetingRepository
         Guid? excludeMeetingId,
         CancellationToken cancellationToken)
     {
-        // Same overlap semantics as SearchAsync; cancelled meetings do not block anyone.
+        // Same overlap semantics as SearchAsync; cancelled meetings do not block anyone, and neither do meetings the participant declined.
         IQueryable<Meeting> query = db.Meetings.AsNoTracking()
             .Where(e => e.CancelledAtUtc == null && e.EndTimeUtc > fromUtc && e.StartTimeUtc < toUtc);
 
@@ -82,7 +82,7 @@ internal sealed class MeetingRepository(AppDbContext db) : IMeetingRepository
 
         List<ParticipantConflict> conflicts = await query
             .SelectMany(
-                e => e.Participants.Where(a => emails.Contains(a.Email)),
+                e => e.Participants.Where(a => emails.Contains(a.Email) && a.Response != ResponseStatus.Declined),
                 (e, a) => new ParticipantConflict(a.Email, e.Id, e.Title, e.StartTimeUtc, e.EndTimeUtc))
             .ToListAsync(cancellationToken);
 

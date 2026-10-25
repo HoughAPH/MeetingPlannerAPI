@@ -24,7 +24,7 @@ What it is meant to show:
 
 This is intentionally simplified. In particular it has **no authentication or authorisation**, no users or tenants, no
 calendars or time zones beyond UTC, no recurring meetings, no room or resource booking and no real notification
-delivery (`LoggingNotificationService` only writes to the console). Overlapping meetings are allowed, and the
+delivery (`LoggingNotificationService` only writes to the console). Notifications are sent after the change is saved, with no outbox or retry, so a failing notifier would turn a committed change into an error response; a production system would use a transactional outbox. Overlapping meetings are allowed, and the
 availability check is advisory only, with no guarantee against double booking. Accept/decline is a plain Outlook-style
 reply: there is no organiser, no tentative answer and no notification of the reply, and because there is no
 authentication anyone can answer on behalf of any participant. The design choices favour clarity of the pattern over
