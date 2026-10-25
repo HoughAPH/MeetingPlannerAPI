@@ -3,4 +3,5 @@
     <File Path="CLAUDE.md" />
   </Folder>
   <Project Path="MeetingPlannerAPI/MeetingPlannerAPI.csproj" />
+  <Project Path="MeetingPlannerAPIProject.Tests/MeetingPlannerAPIProject.Tests.csproj" />
 </Solution>
