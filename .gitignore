@@ -364,4 +364,6 @@ FodyWeavers.xsd
 /requiredments.txt
 
 # Local SQLite database
-doctorly.db*
+
+# Local SQLite database
+MeetingPlannerAPI/MeetingPlanner.db*
