@@ -50,6 +50,7 @@ Conventions that are easy to miss:
 - `CancelMeetingHandlerTests`: the handler against hand-written fakes (repository, unit of work, notifier), including notify-once and the lost-race cases.
 - `UpdateMeetingHandlerTests`: the update handler against fakes (stale version, lost save race, invalid input, cancelled meeting, notifications, participant identity).
 - `RespondToInvitationHandlerTests`: the accept/decline handler against fakes (idempotent repeat, unknown ids, save race).
+- `SearchMeetingsHandlerTests`: the search handler against a fake repository (input normalisation, paging bounds, from/to validation, DTO mapping).
 - `CheckAvailabilityHandlerTests`: the availability handler against a fake repository (email normalisation, grouping of conflicts per participant, window and limit validation).
 - `MeetingConcurrencyTests`: two `AppDbContext`s on one SQLite file reproduce the simultaneous-save race.
 - `MeetingsApiTests`: end-to-end through `WebApplicationFactory<Program>`. Each test class instance overrides `ConnectionStrings:Default` with a throwaway temp SQLite file, so `MeetingPlanner.db` is never touched.
