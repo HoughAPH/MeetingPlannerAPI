@@ -8,7 +8,7 @@ MeetingPlanner take-home: a calendar/scheduling backend API. It is an ASP.NET Co
 
 Repository layout: the solution root (`MeetingPlannerAPI.slnx`, `CLAUDE.md`) holds the API project `MeetingPlannerAPI/` (with `Program.cs`, the layer folders and the csproj). The xUnit test project `MeetingPlannerAPIProject.Tests/` sits beside it, and `PLAN.md` and a concurrency write-up may be regenerated later. Run `dotnet run` and `dotnet ef` from `MeetingPlannerAPI/`.
 
-Implemented so far: the `Meeting` aggregate, the `Participant` entity, `POST /api/meetings` (returns a `Location` header), `GET /api/meetings/{id}` (returns the `ETag`; 404 if unknown or cancelled), `GET /api/meetings` (filters and text search), `PUT /api/meetings/{id}` (full replace with optimistic concurrency) and `DELETE /api/meetings/{id}` (soft cancel), plus `GET /api/availability` (advisory participant availability, warn-only). Notifications are sent through `INotificationService` on create, update and cancel (`LoggingNotificationService` just writes to the console). Accept/reject (`Participant.IsAttending`) is planned but not built. Tests are in `MeetingPlannerAPIProject.Tests/` (see Testing).
+Implemented so far: the `Meeting` aggregate, the `Participant` entity, `POST /api/meetings` (returns a `Location` header), `GET /api/meetings/{id}` (returns the `ETag`; 404 if unknown or cancelled), `GET /api/meetings` (filters and text search), `PUT /api/meetings/{id}` (full replace with optimistic concurrency) and `DELETE /api/meetings/{id}` (soft cancel), the accept/decline response, plus `GET /api/availability` (advisory participant availability, warn-only). Notifications are sent through `INotificationService` on create, update and cancel (`LoggingNotificationService` just writes to the console). Accept/decline is `PUT /api/meetings/{id}/participants/{participantId}/response` handled by `RespondToInvitationHandler`. Tests are in `MeetingPlannerAPIProject.Tests/` (see Testing).
 
 ## Commands
 
@@ -38,6 +38,7 @@ Conventions that are easy to miss:
 - `Meeting.Version` is incremented by the domain, not the database, and is an EF concurrency token. Every `Meeting` mutation must call `Version++`, including participant-only changes. `AppDbContext.SaveChangesAsync` converts `DbUpdateConcurrencyException` to `ConcurrencyConflictException`, which `DomainExceptionHandler` maps to 412. `PUT` requires `If-Match` (428 without it); `ETags` formats and parses the header.
 - All times are UTC `DateTime` in the domain. SQLite returns `Kind=Unspecified`, so the EF mapping uses a value converter that restores `Utc`.
 - Overlapping meetings are allowed; nothing blocks them. Availability is advisory only: `CheckAvailabilityHandler` asks `IMeetingRepository.FindParticipantConflictsAsync` (same overlap rule as search, cancelled meetings ignored, optional `excludeMeetingId`) which participants are on other overlapping meetings. `MeetingsController` calls it after a successful create or update and adds `availabilityConflicts` to the response (omitted when empty). It runs after the save, so it is a warning, not a guarantee. The conflict list is sorted in memory because EF cannot translate `OrderBy` over the projected record.
+- Accept/decline is an Outlook-style reply with no hard block: `Participant.Response` is `NoResponse` (default), `Accepted` or `Declined` (stored as text; serialised by name via an attribute on the enum). `Meeting.Respond` rejects cancelled meetings and `NoResponse`, bumps `Version` only when the answer changes, and never looks at other meetings. The endpoint takes no `If-Match`; accepting adds `availabilityConflicts` for that participant only. `Update` keeps an existing participant's response (matched by email).
 - Participant emails are stored lower-cased, are unique per meeting (domain check plus a unique index), and the search filter lower-cases its input before comparing.
 - `public partial class Program;` at the end of `Program.cs` is there so tests can use `WebApplicationFactory<Program>`.
 
@@ -45,9 +46,10 @@ Conventions that are easy to miss:
 
 `MeetingPlannerAPIProject.Tests/` is an xUnit project (net10.0) that references the API project. Run it with `dotnet test MeetingPlannerAPI.slnx`.
 
-- `MeetingDomainTests`: `Meeting`/`Participant` invariants, error codes, `Version` increments and participant reconciliation.
+- `MeetingDomainTests`: `Meeting`/`Participant` invariants, accept/decline, error codes, `Version` increments and participant reconciliation.
 - `CancelMeetingHandlerTests`: the handler against hand-written fakes (repository, unit of work, notifier), including notify-once and the lost-race cases.
 - `UpdateMeetingHandlerTests`: the update handler against fakes (stale version, lost save race, invalid input, cancelled meeting, notifications, participant identity).
+- `RespondToInvitationHandlerTests`: the accept/decline handler against fakes (idempotent repeat, unknown ids, save race).
 - `CheckAvailabilityHandlerTests`: the availability handler against a fake repository (email normalisation, grouping of conflicts per participant, window and limit validation).
 - `MeetingConcurrencyTests`: two `AppDbContext`s on one SQLite file reproduce the simultaneous-save race.
 - `MeetingsApiTests`: end-to-end through `WebApplicationFactory<Program>`. Each test class instance overrides `ConnectionStrings:Default` with a throwaway temp SQLite file, so `MeetingPlanner.db` is never touched.

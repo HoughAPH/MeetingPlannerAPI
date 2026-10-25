@@ -25,8 +25,9 @@ What it is meant to show:
 This is intentionally simplified. In particular it has **no authentication or authorisation**, no users or tenants, no
 calendars or time zones beyond UTC, no recurring meetings, no room or resource booking and no real notification
 delivery (`LoggingNotificationService` only writes to the console). Overlapping meetings are allowed, and the
-availability check is advisory only, with no guarantee against double booking. Accept/reject
-(`Participant.IsAttending`) is modelled but not yet exposed. The design choices favour clarity of the pattern over
+availability check is advisory only, with no guarantee against double booking. Accept/decline is a plain Outlook-style
+reply: there is no organiser, no tentative answer and no notification of the reply, and because there is no
+authentication anyone can answer on behalf of any participant. The design choices favour clarity of the pattern over
 production concerns such as scale, security or operations.
 
 ## Structure
@@ -51,6 +52,7 @@ One project with folder-based layers. Convention, not the compiler, enforces the
 | `PUT /api/meetings/{id}` | Full replace; requires `If-Match` (428 without it, 412 if stale) |
 | `DELETE /api/meetings/{id}` | Soft cancel (idempotent) |
 | `GET /api/availability` | Advisory check of which participants are already booked |
+| `PUT /api/meetings/{id}/participants/{participantId}/response` | Accept or decline an invitation (`{ "response": "Accepted" }`); no `If-Match` needed; accepting a clashing meeting still succeeds and returns `availabilityConflicts` |
 
 `MeetingPlannerAPI/MeetingPlannerAPI.http` has sample requests. In Development the OpenAPI document is served at
 `/openapi/v1.json`.
