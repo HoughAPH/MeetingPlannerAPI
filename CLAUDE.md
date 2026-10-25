@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MeetingPlanner take-home: a calendar/scheduling backend API. It is an ASP.NET Core Web API on `net10.0` with controller-based routing. It is a single project with folder-based DDD layers.
 
-Repository layout: the solution root (`MeetingPlannerAPI.slnx`, `CLAUDE.md`) holds the API project `MeetingPlannerAPI/` (with `Program.cs`, the layer folders and the csproj). A test project is planned but does not exist yet, and `PLAN.md` and a concurrency write-up may be regenerated later. Run `dotnet run` and `dotnet ef` from `MeetingPlannerAPI/`.
+Repository layout: the solution root (`MeetingPlannerAPI.slnx`, `CLAUDE.md`) holds the API project `MeetingPlannerAPI/` (with `Program.cs`, the layer folders and the csproj). The xUnit test project `MeetingPlannerAPIProject.Tests/` sits beside it, and `PLAN.md` and a concurrency write-up may be regenerated later. Run `dotnet run` and `dotnet ef` from `MeetingPlannerAPI/`.
 
-Implemented so far: the `Meeting` aggregate, the `Participant` entity, `POST /api/meetings` (returns a `Location` header), `GET /api/meetings/{id}` (returns the `ETag`; 404 if unknown or cancelled), `GET /api/meetings` (filters and text search), `PUT /api/meetings/{id}` (full replace with optimistic concurrency) and `DELETE /api/meetings/{id}` (soft cancel), plus `GET /api/availability` (advisory participant availability, warn-only). Notifications are sent through `INotificationService` on create, update and cancel (`LoggingNotificationService` just writes to the console). Accept/reject (`Participant.IsAttending`) is planned but not built. There are no tests yet.
+Implemented so far: the `Meeting` aggregate, the `Participant` entity, `POST /api/meetings` (returns a `Location` header), `GET /api/meetings/{id}` (returns the `ETag`; 404 if unknown or cancelled), `GET /api/meetings` (filters and text search), `PUT /api/meetings/{id}` (full replace with optimistic concurrency) and `DELETE /api/meetings/{id}` (soft cancel), plus `GET /api/availability` (advisory participant availability, warn-only). Notifications are sent through `INotificationService` on create, update and cancel (`LoggingNotificationService` just writes to the console). Accept/reject (`Participant.IsAttending`) is planned but not built. Tests are in `MeetingPlannerAPIProject.Tests/` (see Testing).
 
 ## Commands
 
@@ -40,6 +40,16 @@ Conventions that are easy to miss:
 - Overlapping meetings are allowed; nothing blocks them. Availability is advisory only: `CheckAvailabilityHandler` asks `IMeetingRepository.FindParticipantConflictsAsync` (same overlap rule as search, cancelled meetings ignored, optional `excludeMeetingId`) which participants are on other overlapping meetings. `MeetingsController` calls it after a successful create or update and adds `availabilityConflicts` to the response (omitted when empty). It runs after the save, so it is a warning, not a guarantee. The conflict list is sorted in memory because EF cannot translate `OrderBy` over the projected record.
 - Participant emails are stored lower-cased, are unique per meeting (domain check plus a unique index), and the search filter lower-cases its input before comparing.
 - `public partial class Program;` at the end of `Program.cs` is there so tests can use `WebApplicationFactory<Program>`.
+
+## Testing
+
+`MeetingPlannerAPIProject.Tests/` is an xUnit project (net10.0) that references the API project. Run it with `dotnet test MeetingPlannerAPI.slnx`.
+
+- `MeetingDomainTests`: `Meeting`/`Participant` invariants, error codes, `Version` increments and participant reconciliation.
+- `CancelMeetingHandlerTests`: the handler against hand-written fakes (repository, unit of work, notifier), including notify-once and the lost-race cases.
+- `MeetingConcurrencyTests`: two `AppDbContext`s on one SQLite file reproduce the simultaneous-save race.
+- `MeetingsApiTests`: end-to-end through `WebApplicationFactory<Program>`. Each test class instance overrides `ConnectionStrings:Default` with a throwaway temp SQLite file, so `MeetingPlanner.db` is never touched.
+
 ## Tooling notes
 
 `.claude/` and `.mcp.json` exist at both the solution root and in `MeetingPlannerAPI/`. They hold Visual Studio integration hooks and a shim (`vs-*.ps1`), and `.mcp.json` configures the VS MCP servers. These support debugging and semantic tools from Visual Studio and are not part of the application.
