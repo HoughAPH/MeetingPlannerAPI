@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Shared DDD conventions (personal file, outside the repo):
+@~/.claude/dotnet-ddd.md
+
 ## Overview
 
 MeetingPlanner take-home: a calendar/scheduling backend API. It is an ASP.NET Core Web API on `net10.0` with controller-based routing. It is a single project with folder-based DDD layers.
