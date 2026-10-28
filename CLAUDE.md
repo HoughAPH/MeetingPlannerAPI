@@ -2,9 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Shared DDD conventions (personal file, outside the repo):
-@~/.claude/dotnet-ddd.md
-
 ## Overview
 
 MeetingPlanner take-home: a calendar/scheduling backend API. It is an ASP.NET Core Web API on `net10.0` with controller-based routing. It is a single project with folder-based DDD layers.
@@ -37,6 +34,8 @@ Layers are top-level folders and namespaces in the one project. Nothing but conv
 - `API/`: `MeetingsController`, request and response contracts, and `DomainExceptionHandler`, which turns `DomainException` and `RequestValidationException` into 400 problem details. Contracts accept `DateTimeOffset` and are normalised to UTC in `ContractMappings`.
 
 Conventions that are easy to miss:
+- Every new domain method gets a unit test in `MeetingDomainTests`.
+- After changing an EF LINQ query, run the related tests straight away. Translation errors only show at runtime.
 - Cancelling is a soft delete: `Meeting.Cancel()` sets `CancelledAtUtc` and returns `false` if already cancelled. `CancelMeetingHandler` only notifies when the state actually changed, so repeated DELETEs return 204 without re-notifying. `MeetingRepository.SearchAsync` filters out cancelled meetings; `GetByIdAsync` does not.
 - `Meeting.Version` is incremented by the domain, not the database, and is an EF concurrency token. Every `Meeting` mutation must call `Version++`, including participant-only changes. `AppDbContext.SaveChangesAsync` converts `DbUpdateConcurrencyException` to `ConcurrencyConflictException`, which `DomainExceptionHandler` maps to 412. `PUT` requires `If-Match` (428 without it); `ETags` formats and parses the header.
 - All times are UTC `DateTime` in the domain. SQLite returns `Kind=Unspecified`, so the EF mapping uses a value converter that restores `Utc`.
